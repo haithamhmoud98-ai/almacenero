@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escáner de Productos</title>
+
+<link rel="stylesheet" href="style.css">
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+</head>
+
+<body>
+
+<h1>📦 Escáner de Productos</h1>
+
+<div id="camera-container">
+    <video id="video" autoplay playsinline></video>
+</div>
+
+<!-- 🔥 زر واحد فقط -->
+<button onclick="scanProduct()">📸 Escanear producto</button>
+
+<button onclick="openModal()">➕ Añadir producto</button>
+
+<p id="status"></p>
+<p id="recognized"></p>
+
+<div id="result"></div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<!-- Modal -->
+<div id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Añadir producto</h3>
+        <input id="name" placeholder="Nombre del producto">
+        <input type="file" id="imageFile" accept="image/*">
+        <input id="location" placeholder="Ubicación">
+        <button onclick="saveItem()">💾 Guardar</button>
+        <button onclick="closeModal()">❌ Cerrar</button>
+    </div>
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
