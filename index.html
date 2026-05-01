@@ -7,44 +7,91 @@
 
 <link rel="stylesheet" href="style.css">
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
-<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 </head>
 
 <body>
 
 <h1>📦 Escáner de Productos</h1>
 
+<!-- الكاميرا -->
 <div id="camera-container">
     <video id="video" autoplay playsinline></video>
+    <div class="scanner-frame">
+        <div class="scanner-line"></div>
+    </div>
 </div>
 
-<!-- 🔥 زر واحد فقط -->
+<!-- الأزرار -->
 <button onclick="scanProduct()">📸 Escanear producto</button>
-
 <button onclick="openModal()">➕ Añadir producto</button>
 
+<!-- 🔥 معاينة المسح (تم نقلها للأعلى) -->
+<div id="scanPreviewContainer" style="display:none; margin-top:10px;">
+    
+    <img id="scanPreview" style="width:90%; max-width:400px; border-radius:10px;">
+
+    <br>
+
+    <button onclick="confirmScan()">✅ Procesar</button>
+    <button onclick="cancelScan()" style="background:red;">❌ Cancelar</button>
+
+</div>
+
+<!-- الحالة -->
 <p id="status"></p>
 <p id="recognized"></p>
 
+<!-- نتائج المسح -->
 <div id="result"></div>
 
+<!-- البحث -->
+<input 
+id="searchInput" 
+placeholder="🔍 Buscar producto..." 
+oninput="searchManual()"
+style="width:90%; max-width:400px; padding:10px; margin:10px; border-radius:10px;">
+
+<!-- نتائج البحث -->
+<div id="searchResults"></div>
+
+<!-- 🔥 Picking List -->
+<h2>📋 Lista de Picking</h2>
+
+<p id="progress"></p>
+<p id="nextItem"></p>
+
+<div id="pickingList"></div>
+
+<!-- canvas -->
 <canvas id="canvas" style="display:none;"></canvas>
 
 <!-- Modal -->
 <div id="modal">
     <div class="modal-content">
-        <h3 id="modalTitle">Añadir producto</h3>
+
+        <span class="close-btn" onclick="closeModal()">✖</span>
+
+        <h3>Añadir producto</h3>
+
         <input id="name" placeholder="Nombre del producto">
-        <input type="file" id="imageFile" accept="image/*">
-        <input id="location" placeholder="Ubicación">
+
+        <button onclick="toggleCamera()">📷 Tomar foto</button>
+
+        <video id="modalCamera" autoplay playsinline style="display:none;"></video>
+
+        <img id="preview" style="width:100px; display:none; margin-top:10px;">
+
+        <button id="removeImageBtn" onclick="removeImage()" style="display:none; background:red;">
+            ❌ Eliminar foto
+        </button>
+
+        <input id="location" placeholder="Ubicación (ej: a-1-n00)">
+
         <button onclick="saveItem()">💾 Guardar</button>
-        <button onclick="closeModal()">❌ Cerrar</button>
+
     </div>
 </div>
 
