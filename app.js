@@ -1,8 +1,7 @@
-// 🔥 Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyASGcks-5Vsg5i5xyZezOlNWah3T7kzYeo",
-  authDomain: "scanner-project-7f8f0.firebaseapp.com",
-  projectId: "scanner-project-7f8f0",
+    apiKey: "AIzaSyASGcks-5Vsg5i5xyZezOlNWah3T7kzYeo",
+    authDomain: "scanner-project-7f8f0.firebaseapp.com",
+    projectId: "scanner-project-7f8f0",
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -15,20 +14,14 @@ let modalStream = null;
 let capturedImage = null;
 let cameraOn = false;
 
-// 🔥 Picking List
 let pickingList = [];
 let pickedItems = new Set();
 
-// 🔥 جديد للمسح
 let scannedImage = null;
-
-//////////////////////////////////////////////////
-// 📦 تحميل المنتجات
-//////////////////////////////////////////////////
+let selectedImage = null;
 
 function loadProducts(){
     db.collection("products").onSnapshot(snapshot => {
-
         products = [];
 
         snapshot.forEach(doc => {
@@ -38,15 +31,12 @@ function loadProducts(){
             });
         });
 
-        // 🔥 تحديث الواجهة
         renderPickingList();
 
-        // 🔍 تحديث البحث إذا فيه نص
         let input = document.getElementById("searchInput");
         if(input && input.value){
             searchManual();
         }
-
     });
 }
 
@@ -61,12 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 const video = document.getElementById("video");
 
-//////////////////////////////////////////////////
-// 📍 تحليل الموقع
-//////////////////////////////////////////////////
-
 function parseLocation(location){
-
     if(!location) return { section:"", position:999, level:999 };
 
     let parts = location.toLowerCase().split("-");
@@ -85,9 +70,7 @@ function parseLocation(location){
 const sectionOrder = ["pck", "a", "b", "c", "d", "sa", "sb"];
 
 function sortProducts(list){
-
     return list.sort((a, b) => {
-
         let locA = parseLocation(a.location);
         let locB = parseLocation(b.location);
 
@@ -107,12 +90,7 @@ function sortProducts(list){
     });
 }
 
-//////////////////////////////////////////////////
-// 📸 مسح بالكاميرا
-//////////////////////////////////////////////////
-
 async function scanProduct(){
-
     try{
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "environment" }
@@ -120,95 +98,234 @@ async function scanProduct(){
 
         video.srcObject = stream;
 
-        await new Promise(resolve => setTimeout(resolve, 1200));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        let canvas = document.getElementById("canvas");
-        let ctx = canvas.getContext("2d");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
 
-        let width = video.videoWidth;
-        let height = video.videoHeight;
+        const width = video.videoWidth;
+        const height = video.videoHeight;
 
-        let cropWidth = width * 0.8;
-        let cropHeight = height * 0.6;
+        canvas.width = width;
+        canvas.height = height;
 
-        let x = (width - cropWidth) / 2;
-        let y = (height - cropHeight) / 2;
-
-        canvas.width = cropWidth * 2;
-        canvas.height = cropHeight * 2;
-
-        ctx.drawImage(video, x, y, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, width, height);
 
         stream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
 
-        let img = canvas.toDataURL("image/png");
+        const img = canvas.toDataURL("image/png");
 
         scannedImage = img;
+        selectedImage = null;
 
         document.getElementById("scanPreview").src = img;
         document.getElementById("scanPreviewContainer").style.display = "block";
 
+        enableSelection(img);
+
     }catch(e){
         alert("No se pudo usar la cámara");
+        console.error(e);
     }
 }
 
 function confirmScan(){
-    if(!scannedImage) return;
+    const imageToProcess = selectedImage || scannedImage;
+    if(!imageToProcess) return;
 
     document.getElementById("scanPreviewContainer").style.display = "none";
-    readText(scannedImage);
+    document.getElementById("selectionCanvas").style.display = "none";
+
+    readText(imageToProcess);
+
     scannedImage = null;
+    selectedImage = null;
 }
 
 function cancelScan(){
     scannedImage = null;
+    selectedImage = null;
+
     document.getElementById("scanPreview").src = "";
+    document.getElementById("selectionCanvas").style.display = "none";
     document.getElementById("scanPreviewContainer").style.display = "none";
 }
 
-//////////////////////////////////////////////////
-// 🔍 OCR
-//////////////////////////////////////////////////
+function enableSelection(imageSrc){
+    const canvas = document.getElementById("selectionCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const img = new Image();
+    img.src = imageSrc;
+
+    img.onload = () => {
+        const preview = document.getElementById("scanPreview");
+
+        canvas.style.display = "block";
+
+        canvas.width = preview.clientWidth;
+        canvas.height = preview.clientHeight;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        let startX = 0;
+        let startY = 0;
+        let currentX = 0;
+        let currentY = 0;
+        let isDrawing = false;
+
+        function getPos(e){
+            const rect = canvas.getBoundingClientRect();
+
+            if(e.touches && e.touches.length > 0){
+                return {
+                    x: e.touches[0].clientX - rect.left,
+                    y: e.touches[0].clientY - rect.top
+                };
+            }
+
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function draw(){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+        }
+
+        function finishSelection(){
+            isDrawing = false;
+
+            const scaleX = img.width / canvas.width;
+            const scaleY = img.height / canvas.height;
+
+            processSelection(
+                startX * scaleX,
+                startY * scaleY,
+                currentX * scaleX,
+                currentY * scaleY,
+                img
+            );
+        }
+
+        canvas.onmousedown = (e) => {
+            const pos = getPos(e);
+            startX = pos.x;
+            startY = pos.y;
+            currentX = pos.x;
+            currentY = pos.y;
+            isDrawing = true;
+        };
+
+        canvas.onmousemove = (e) => {
+            if(!isDrawing) return;
+            const pos = getPos(e);
+            currentX = pos.x;
+            currentY = pos.y;
+            draw();
+        };
+
+        canvas.onmouseup = () => {
+            if(!isDrawing) return;
+            finishSelection();
+        };
+
+        canvas.ontouchstart = (e) => {
+            e.preventDefault();
+            const pos = getPos(e);
+            startX = pos.x;
+            startY = pos.y;
+            currentX = pos.x;
+            currentY = pos.y;
+            isDrawing = true;
+        };
+
+        canvas.ontouchmove = (e) => {
+            e.preventDefault();
+            if(!isDrawing) return;
+            const pos = getPos(e);
+            currentX = pos.x;
+            currentY = pos.y;
+            draw();
+        };
+
+        canvas.ontouchend = (e) => {
+            e.preventDefault();
+            if(!isDrawing) return;
+            finishSelection();
+        };
+    };
+}
+
+function processSelection(sx, sy, ex, ey, img){
+    let w = ex - sx;
+    let h = ey - sy;
+
+    if(w < 0){
+        sx = ex;
+        w = Math.abs(w);
+    }
+
+    if(h < 0){
+        sy = ey;
+        h = Math.abs(h);
+    }
+
+    if(w < 10 || h < 10){
+        selectedImage = null;
+        return;
+    }
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = w;
+    canvas.height = h;
+
+    ctx.drawImage(img, sx, sy, w, h, 0, 0, w, h);
+
+    selectedImage = canvas.toDataURL("image/png");
+}
 
 function readText(img){
-
     document.getElementById("status").innerText = "⏳ Analizando...";
 
     Tesseract.recognize(img, 'eng', {
         tessedit_pageseg_mode: 6
     }).then(({ data: { text } }) => {
-
         let lines = text.split("\n");
 
         let cleanedLines = lines
             .map(l => l.trim())
             .filter(l => l.length > 2);
 
+        document.getElementById("status").innerText = "✅ Análisis completado";
+
         document.getElementById("recognized").innerText =
             "📄 Detectado:\n" + cleanedLines.join("\n");
 
-        // ✅ الكود الأصلي
         searchLocations(cleanedLines);
-
-        // 🔥 إضافة فقط (بدون حذف أي شيء)
         showScanSuggestions(cleanedLines);
+    }).catch(error => {
+        document.getElementById("status").innerText = "❌ Error al analizar";
+        console.error(error);
     });
 }
-
-//////////////////////////////////////////////////
-// 🧠 المطابقة
-//////////////////////////////////////////////////
 
 function tokenize(text){
     return text.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(t => t.length > 1);
 }
 
 function smartMatch(input, product){
-
     let inputTokens = tokenize(input);
     let productTokens = tokenize(product);
+
+    if(productTokens.length === 0) return 0;
 
     let matches = 0;
 
@@ -221,22 +338,15 @@ function smartMatch(input, product){
     return matches / productTokens.length;
 }
 
-//////////////////////////////////////////////////
-// 🔎 النتائج
-//////////////////////////////////////////////////
-
 function searchLocations(lines){
-
     let found = [];
 
     lines.forEach(line => {
-
         let bestMatch = null;
         let bestScore = 0;
 
         products.forEach(p => {
-
-            let score = smartMatch(line, p.name);
+            let score = smartMatch(line, p.name || "");
 
             if(score > bestScore){
                 bestScore = score;
@@ -267,12 +377,7 @@ function searchLocations(lines){
     renderPickingList();
 }
 
-//////////////////////////////////////////////////
-// 🔥 عرض Picking List + زر حذف
-//////////////////////////////////////////////////
-
 function renderPickingList(){
-
     let container = document.getElementById("pickingList");
     let progress = document.getElementById("progress");
     let next = document.getElementById("nextItem");
@@ -281,6 +386,8 @@ function renderPickingList(){
 
     if(pickingList.length === 0){
         container.innerHTML = "<p>❌ No hay lista</p>";
+        progress.innerHTML = "";
+        next.innerHTML = "";
         return;
     }
 
@@ -296,12 +403,10 @@ function renderPickingList(){
         : "✅ Completado";
 
     pickingList.forEach(p => {
-
         let done = pickedItems.has(p.id);
 
         container.innerHTML += `
         <div class="card row" style="opacity:${done ? 0.5 : 1};">
-
             ${p.image ? `<img src="${p.image}" class="product-img" onclick="openImage('${p.image}')">` : ""}
 
             <div onclick="togglePick('${p.id}')" style="flex:1;">
@@ -316,18 +421,12 @@ function renderPickingList(){
             <button onclick="removeFromPicking('${p.id}')" style="background:red;">
                 🗑
             </button>
-
         </div>
         `;
     });
 }
 
-//////////////////////////////////////////////////
-// 🔥 تحديد العنصر
-//////////////////////////////////////////////////
-
 function togglePick(id){
-
     if(pickedItems.has(id)){
         pickedItems.delete(id);
     } else {
@@ -337,25 +436,13 @@ function togglePick(id){
     renderPickingList();
 }
 
-//////////////////////////////////////////////////
-// 🗑 حذف من picking
-//////////////////////////////////////////////////
-
 function removeFromPicking(id){
-
     pickingList = pickingList.filter(p => p.id !== id);
-
     pickedItems.delete(id);
-
     renderPickingList();
 }
 
-//////////////////////////////////////////////////
-// 🔍 البحث + زر إضافة
-//////////////////////////////////////////////////
-
 function searchManual(){
-
     let input = document.getElementById("searchInput").value.toLowerCase().trim();
     let result = document.getElementById("searchResults");
 
@@ -370,12 +457,10 @@ function searchManual(){
     matches = sortProducts(matches);
 
     matches.forEach(p => {
-
         let alreadyAdded = pickingList.find(item => item.id === p.id);
 
         result.innerHTML += `
         <div class="card row">
-
             ${p.image ? `<img src="${p.image}" class="product-img">` : ""}
 
             <div>
@@ -386,18 +471,12 @@ function searchManual(){
             <button onclick="addToPicking('${p.id}')" style="margin-left:auto;">
                 ${alreadyAdded ? "✔" : "➕"}
             </button>
-
         </div>
         `;
     });
 }
 
-//////////////////////////////////////////////////
-// ➕ إضافة إلى picking
-//////////////////////////////////////////////////
-
 function addToPicking(id){
-
     let product = products.find(p => p.id === id);
 
     if(!product) return;
@@ -411,12 +490,7 @@ function addToPicking(id){
     renderPickingList();
 }
 
-//////////////////////////////////////////////////
-// 📷 تكبير الصورة
-//////////////////////////////////////////////////
-
 function openImage(src){
-
     let modal = document.createElement("div");
 
     modal.style.position = "fixed";
@@ -425,6 +499,7 @@ function openImage(src){
     modal.style.display = "flex";
     modal.style.alignItems = "center";
     modal.style.justifyContent = "center";
+    modal.style.zIndex = "2000";
 
     let img = document.createElement("img");
     img.src = src;
@@ -438,19 +513,13 @@ function openImage(src){
     document.body.appendChild(modal);
 }
 
-//////////////////////////////////////////////////
-// 📷 الكاميرا
-//////////////////////////////////////////////////
-
 async function toggleCamera(){
-
     let video = document.getElementById("modalCamera");
     let preview = document.getElementById("preview");
     let canvas = document.getElementById("canvas");
     let ctx = canvas.getContext("2d");
 
     if(!cameraOn){
-
         modalStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "environment" }
         });
@@ -461,9 +530,7 @@ async function toggleCamera(){
         cameraOn = true;
 
         video.onloadedmetadata = () => {
-
             setTimeout(() => {
-
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
 
@@ -480,18 +547,12 @@ async function toggleCamera(){
                 video.style.display = "none";
 
                 cameraOn = false;
-
             }, 500);
         };
     }
 }
 
-//////////////////////////////////////////////////
-// ❌ حذف الصورة
-//////////////////////////////////////////////////
-
 function removeImage(){
-
     capturedImage = null;
 
     let preview = document.getElementById("preview");
@@ -501,12 +562,7 @@ function removeImage(){
     document.getElementById("removeImageBtn").style.display = "none";
 }
 
-//////////////////////////////////////////////////
-// 💾 حفظ
-//////////////////////////////////////////////////
-
 async function saveItem(){
-
     let name = document.getElementById("name").value;
     let location = document.getElementById("location").value;
 
@@ -523,19 +579,13 @@ async function saveItem(){
     alert("✅ Guardado");
 
     closeModal();
-    loadProducts();
 }
-
-//////////////////////////////////////////////////
-// ❌ المودال
-//////////////////////////////////////////////////
 
 function openModal(){
     document.getElementById("modal").style.display = "block";
 }
 
 function closeModal(){
-
     if(modalStream){
         modalStream.getTracks().forEach(track => track.stop());
     }
@@ -556,24 +606,17 @@ function closeModal(){
     document.getElementById("modal").style.display = "none";
 }
 
-//////////////////////////////////////////////////
-// 🔥 الاقتراحات (الإضافة الوحيدة)
-//////////////////////////////////////////////////
-
 function showScanSuggestions(lines){
-
     let result = document.getElementById("result");
 
     let html = `<h3>🧠 Sugerencias</h3>`;
 
     lines.forEach(line => {
-
         let bestMatch = null;
         let bestScore = 0;
 
         products.forEach(p => {
-
-            let score = smartMatch(line, p.name);
+            let score = smartMatch(line, p.name || "");
 
             if(score > bestScore){
                 bestScore = score;
@@ -582,12 +625,10 @@ function showScanSuggestions(lines){
         });
 
         if(bestScore > 0.3 && bestMatch){
-
             let alreadyAdded = pickingList.find(p => p.id === bestMatch.id);
 
             html += `
             <div class="card row">
-
                 <div style="flex:1;">
                     <strong>${line}</strong><br>
                     👉 ${bestMatch.name}
@@ -596,11 +637,10 @@ function showScanSuggestions(lines){
                 <button onclick="addToPicking('${bestMatch.id}')">
                     ${alreadyAdded ? "✔" : "➕"}
                 </button>
-
             </div>
             `;
         }
     });
 
-    result.innerHTML += html;
+    result.innerHTML = html;
 }
