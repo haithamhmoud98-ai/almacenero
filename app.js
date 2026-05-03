@@ -18,7 +18,12 @@ let pickingList = [];
 let pickedItems = new Set();
 
 let scannedImage = null;
-let selectedImage = null;
+let selectedImages = [];
+let selectionRects = [];
+let currentScanImage = null;
+let lastRecognizedLines = [];
+
+const video = document.getElementById("video");
 
 function loadProducts(){
     db.collection("products").onSnapshot(snapshot => {
@@ -48,8 +53,6 @@ document.addEventListener("DOMContentLoaded", () => {
         input.addEventListener("input", searchManual);
     }
 });
-
-const video = document.getElementById("video");
 
 function parseLocation(location){
     if(!location) return { section:"", position:999, level:999 };
@@ -81,10 +84,7 @@ function sortProducts(list){
         if(secB === -1) secB = 999;
 
         if(secA !== secB) return secA - secB;
-
-        if(locA.position !== locB.position){
-            return locA.position - locB.position;
-        }
+        if(locA.position !== locB.position) return locA.position - locB.position;
 
         return locA.level - locB.level;
     });
@@ -98,7 +98,7 @@ async function scanProduct(){
 
         video.srcObject = stream;
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 700));
 
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
@@ -117,11 +117,14 @@ async function scanProduct(){
         const img = canvas.toDataURL("image/png");
 
         scannedImage = img;
-        selectedImage = null;
+        selectedImages = [];
+        selectionRects = [];
 
         document.getElementById("scanPreview").src = img;
         document.getElementById("scanPreviewContainer").style.display = "block";
+        document.getElementById("manualTextContainer").style.display = "none";
 
+        updateSelectionCount();
         enableSelection(img);
 
     }catch(e){
@@ -130,26 +133,47 @@ async function scanProduct(){
     }
 }
 
-function confirmScan(){
-    const imageToProcess = selectedImage || scannedImage;
-    if(!imageToProcess) return;
+async function confirmScan(){
+    const imagesToProcess = selectedImages.length > 0 ? selectedImages : [scannedImage];
+
+    if(!imagesToProcess[0]) return;
 
     document.getElementById("scanPreviewContainer").style.display = "none";
     document.getElementById("selectionCanvas").style.display = "none";
 
-    readText(imageToProcess);
+    document.getElementById("status").innerText = "⏳ Analizando...";
+    document.getElementById("recognized").innerText = "";
+    document.getElementById("result").innerHTML = "";
+
+    let allLines = [];
+
+    for(const img of imagesToProcess){
+        const lines = await analyzeImage(img);
+        allLines = allLines.concat(lines);
+    }
+
+    allLines = [...new Set(allLines)];
+
+    document.getElementById("status").innerText = "✅ Análisis completado";
+
+    lastRecognizedLines = allLines;
+    showManualTextEditor(allLines);
 
     scannedImage = null;
-    selectedImage = null;
+    selectedImages = [];
+    selectionRects = [];
 }
 
 function cancelScan(){
     scannedImage = null;
-    selectedImage = null;
+    selectedImages = [];
+    selectionRects = [];
 
     document.getElementById("scanPreview").src = "";
     document.getElementById("selectionCanvas").style.display = "none";
     document.getElementById("scanPreviewContainer").style.display = "none";
+
+    updateSelectionCount();
 }
 
 function enableSelection(imageSrc){
@@ -160,14 +184,13 @@ function enableSelection(imageSrc){
     img.src = imageSrc;
 
     img.onload = () => {
+        currentScanImage = img;
+
         const preview = document.getElementById("scanPreview");
 
         canvas.style.display = "block";
-
         canvas.width = preview.clientWidth;
         canvas.height = preview.clientHeight;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         let startX = 0;
         let startY = 0;
@@ -191,26 +214,62 @@ function enableSelection(imageSrc){
             };
         }
 
-        function draw(){
+        function drawRects(tempRect = null){
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
             ctx.strokeStyle = "red";
             ctx.lineWidth = 3;
-            ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+
+            selectionRects.forEach(rect => {
+                ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+            });
+
+            if(tempRect){
+                ctx.strokeStyle = "#00ffcc";
+                ctx.strokeRect(tempRect.x, tempRect.y, tempRect.w, tempRect.h);
+            }
         }
 
         function finishSelection(){
             isDrawing = false;
 
+            let x = startX;
+            let y = startY;
+            let w = currentX - startX;
+            let h = currentY - startY;
+
+            if(w < 0){
+                x = currentX;
+                w = Math.abs(w);
+            }
+
+            if(h < 0){
+                y = currentY;
+                h = Math.abs(h);
+            }
+
+            if(w < 10 || h < 10){
+                drawRects();
+                return;
+            }
+
+            selectionRects.push({ x, y, w, h });
+
             const scaleX = img.width / canvas.width;
             const scaleY = img.height / canvas.height;
 
-            processSelection(
-                startX * scaleX,
-                startY * scaleY,
-                currentX * scaleX,
-                currentY * scaleY,
-                img
+            const cropped = cropImage(
+                img,
+                x * scaleX,
+                y * scaleY,
+                w * scaleX,
+                h * scaleY
             );
+
+            selectedImages.push(cropped);
+
+            drawRects();
+            updateSelectionCount();
         }
 
         canvas.onmousedown = (e) => {
@@ -224,10 +283,17 @@ function enableSelection(imageSrc){
 
         canvas.onmousemove = (e) => {
             if(!isDrawing) return;
+
             const pos = getPos(e);
             currentX = pos.x;
             currentY = pos.y;
-            draw();
+
+            drawRects({
+                x: startX,
+                y: startY,
+                w: currentX - startX,
+                h: currentY - startY
+            });
         };
 
         canvas.onmouseup = () => {
@@ -237,6 +303,7 @@ function enableSelection(imageSrc){
 
         canvas.ontouchstart = (e) => {
             e.preventDefault();
+
             const pos = getPos(e);
             startX = pos.x;
             startY = pos.y;
@@ -248,10 +315,17 @@ function enableSelection(imageSrc){
         canvas.ontouchmove = (e) => {
             e.preventDefault();
             if(!isDrawing) return;
+
             const pos = getPos(e);
             currentX = pos.x;
             currentY = pos.y;
-            draw();
+
+            drawRects({
+                x: startX,
+                y: startY,
+                w: currentX - startX,
+                h: currentY - startY
+            });
         };
 
         canvas.ontouchend = (e) => {
@@ -259,28 +333,12 @@ function enableSelection(imageSrc){
             if(!isDrawing) return;
             finishSelection();
         };
+
+        drawRects();
     };
 }
 
-function processSelection(sx, sy, ex, ey, img){
-    let w = ex - sx;
-    let h = ey - sy;
-
-    if(w < 0){
-        sx = ex;
-        w = Math.abs(w);
-    }
-
-    if(h < 0){
-        sy = ey;
-        h = Math.abs(h);
-    }
-
-    if(w < 10 || h < 10){
-        selectedImage = null;
-        return;
-    }
-
+function cropImage(img, sx, sy, w, h){
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -289,41 +347,124 @@ function processSelection(sx, sy, ex, ey, img){
 
     ctx.drawImage(img, sx, sy, w, h, 0, 0, w, h);
 
-    selectedImage = canvas.toDataURL("image/png");
+    return canvas.toDataURL("image/png");
 }
 
-function readText(img){
-    document.getElementById("status").innerText = "⏳ Analizando...";
+function undoSelection(){
+    selectedImages.pop();
+    selectionRects.pop();
+    redrawSelectionCanvas();
+    updateSelectionCount();
+}
 
-    Tesseract.recognize(img, 'eng', {
-        tessedit_pageseg_mode: 6
-    }).then(({ data: { text } }) => {
-        let lines = text.split("\n");
+function clearSelections(){
+    selectedImages = [];
+    selectionRects = [];
+    redrawSelectionCanvas();
+    updateSelectionCount();
+}
 
-        let cleanedLines = lines
-            .map(l => l.trim())
-            .filter(l => l.length > 2);
+function redrawSelectionCanvas(){
+    const canvas = document.getElementById("selectionCanvas");
+    const ctx = canvas.getContext("2d");
 
-        document.getElementById("status").innerText = "✅ Análisis completado";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        document.getElementById("recognized").innerText =
-            "📄 Detectado:\n" + cleanedLines.join("\n");
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 3;
 
-        searchLocations(cleanedLines);
-        showScanSuggestions(cleanedLines);
-    }).catch(error => {
-        document.getElementById("status").innerText = "❌ Error al analizar";
-        console.error(error);
+    selectionRects.forEach(rect => {
+        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
     });
 }
 
+function updateSelectionCount(){
+    const count = document.getElementById("selectionCount");
+
+    if(!count) return;
+
+    count.innerText = selectedImages.length > 0
+        ? `✅ Selecciones: ${selectedImages.length}`
+        : "Puedes seleccionar una o varias zonas de la imagen";
+}
+
+async function analyzeImage(img){
+    try{
+        const result = await Tesseract.recognize(img, 'eng', {
+            tessedit_pageseg_mode: 6
+        });
+
+        return result.data.text
+            .split("\n")
+            .map(l => l.trim())
+            .filter(l => l.length > 2);
+
+    }catch(error){
+        console.error(error);
+        return [];
+    }
+}
+
+async function readText(img){
+    document.getElementById("status").innerText = "⏳ Analizando...";
+
+    const lines = await analyzeImage(img);
+
+    document.getElementById("status").innerText = "✅ Análisis completado";
+
+    lastRecognizedLines = lines;
+    showManualTextEditor(lines);
+}
+
+function showManualTextEditor(lines){
+    const recognized = document.getElementById("recognized");
+    const manualContainer = document.getElementById("manualTextContainer");
+    const manualText = document.getElementById("manualText");
+
+    const text = lines.join("\n");
+
+    recognized.innerText = "📄 Detectado:\n" + text;
+
+    manualText.value = text;
+    manualContainer.style.display = "block";
+
+    searchLocations(lines);
+    showScanSuggestions(lines);
+}
+
+function applyManualText(){
+    const manualText = document.getElementById("manualText");
+
+    const lines = manualText.value
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l.length > 2);
+
+    lastRecognizedLines = lines;
+
+    document.getElementById("recognized").innerText =
+        "📄 Texto corregido:\n" + lines.join("\n");
+
+    document.getElementById("result").innerHTML = "";
+
+    searchLocations(lines);
+    showScanSuggestions(lines);
+}
+
+function cancelManualText(){
+    document.getElementById("manualTextContainer").style.display = "none";
+}
+
 function tokenize(text){
-    return text.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(t => t.length > 1);
+    return text.toLowerCase()
+        .replace(/[^a-z0-9 ]/g, ' ')
+        .split(' ')
+        .filter(t => t.length > 1);
 }
 
 function smartMatch(input, product){
     let inputTokens = tokenize(input);
-    let productTokens = tokenize(product);
+    let productTokens = tokenize(product || "");
 
     if(productTokens.length === 0) return 0;
 
@@ -488,6 +629,7 @@ function addToPicking(id){
     pickingList = sortProducts(pickingList);
 
     renderPickingList();
+    showScanSuggestionsFromCurrentResult();
 }
 
 function openImage(src){
@@ -610,6 +752,7 @@ function showScanSuggestions(lines){
     let result = document.getElementById("result");
 
     let html = `<h3>🧠 Sugerencias</h3>`;
+    let shownIds = new Set();
 
     lines.forEach(line => {
         let bestMatch = null;
@@ -625,13 +768,20 @@ function showScanSuggestions(lines){
         });
 
         if(bestScore > 0.3 && bestMatch){
+            if(shownIds.has(bestMatch.id)) return;
+
+            shownIds.add(bestMatch.id);
+
             let alreadyAdded = pickingList.find(p => p.id === bestMatch.id);
 
             html += `
             <div class="card row">
+                ${bestMatch.image ? `<img src="${bestMatch.image}" class="product-img" onclick="openImage('${bestMatch.image}')">` : ""}
+
                 <div style="flex:1;">
-                    <strong>${line}</strong><br>
-                    👉 ${bestMatch.name}
+                    <strong>${bestMatch.name}</strong><br>
+                    👉 ${line}
+                    <p>📍 ${bestMatch.location || ""}</p>
                 </div>
 
                 <button onclick="addToPicking('${bestMatch.id}')">
@@ -643,4 +793,23 @@ function showScanSuggestions(lines){
     });
 
     result.innerHTML = html;
+}
+
+function showScanSuggestionsFromCurrentResult(){
+    const manualText = document.getElementById("manualText");
+
+    let lines = [];
+
+    if(manualText && manualText.value.trim()){
+        lines = manualText.value
+            .split("\n")
+            .map(l => l.trim())
+            .filter(l => l.length > 2);
+    } else {
+        lines = lastRecognizedLines;
+    }
+
+    if(lines.length > 0){
+        showScanSuggestions(lines);
+    }
 }

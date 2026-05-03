@@ -35,10 +35,6 @@ video {
     border-radius: 10px;
 }
 
-.scanner-line {
-    display: none;
-}
-
 button {
     padding: 15px;
     margin: 10px;
@@ -68,10 +64,6 @@ button:active {
     transition: 0.2s;
 }
 
-.card:active {
-    transform: scale(0.97);
-}
-
 .card:hover {
     transform: scale(1.02);
 }
@@ -88,14 +80,8 @@ button:active {
     border-radius: 10px;
     object-fit: cover;
     cursor: pointer;
-    transition: 0.2s;
 }
 
-.product-img:active {
-    transform: scale(0.9);
-}
-
-/* ✅ إصلاح ظهور صورتين */
 #previewWrapper {
     position: relative;
     width: 90%;
@@ -119,7 +105,28 @@ button:active {
     touch-action: none;
 }
 
-/* Modal */
+#selectionCount {
+    color: #00ffcc;
+    font-weight: bold;
+}
+
+#manualTextContainer {
+    width: 90%;
+    max-width: 600px;
+    margin: 15px auto;
+}
+
+#manualText {
+    width: 100%;
+    min-height: 130px;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    resize: vertical;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
 #modal {
     display: none;
     position: fixed;
@@ -145,12 +152,10 @@ button:active {
     top: 10px;
     cursor: pointer;
     font-size: 20px;
-    transition: 0.2s;
 }
 
 .close-btn:hover {
     color: red;
-    transform: scale(1.2);
 }
 
 input {

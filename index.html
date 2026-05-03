@@ -30,14 +30,23 @@
         <canvas id="selectionCanvas"></canvas>
     </div>
 
-    <br>
+    <p id="selectionCount"></p>
 
     <button onclick="confirmScan()">✅ Procesar</button>
+    <button onclick="undoSelection()">↩️ Borrar última selección</button>
+    <button onclick="clearSelections()">🧹 Limpiar selecciones</button>
     <button onclick="cancelScan()" style="background:red;">❌ Cancelar</button>
 </div>
 
 <p id="status"></p>
 <p id="recognized"></p>
+
+<div id="manualTextContainer" style="display:none;">
+    <textarea id="manualText" placeholder="Corrige el texto detectado aquí..."></textarea>
+
+    <button onclick="applyManualText()">🔍 Buscar con texto corregido</button>
+    <button onclick="cancelManualText()" style="background:red;">❌ Ocultar</button>
+</div>
 
 <div id="result"></div>
 
