@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escaner de Productos</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+
+<body>
+
+<div id="mainPage">
+
+<h1>Escaner de Productos</h1>
+
+<div id="camera-container">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="scanner-frame"></div>
+</div>
+
+<button onclick="scanProduct()">Escanear producto</button>
+<button onclick="openModal()">Anadir producto</button>
+<button onclick="showSavedProductsPage()">Productos guardados</button>
+
+<div id="scanPreviewContainer" style="display:none; margin-top:10px;">
+    <div id="previewWrapper">
+        <img id="scanPreview" alt="Vista previa del escaneo">
+        <canvas id="selectionCanvas"></canvas>
+    </div>
+
+    <p id="selectionCount"></p>
+
+    <button onclick="confirmScan()">Procesar</button>
+    <button onclick="undoSelection()">Borrar ultima seleccion</button>
+    <button onclick="clearSelections()">Limpiar selecciones</button>
+    <button onclick="cancelScan()" class="danger">Cancelar</button>
+</div>
+
+<p id="status"></p>
+<p id="recognized"></p>
+
+<button id="editDetectedTextBtn" onclick="openManualTextEditor()" style="display:none;">
+    Editar texto detectado
+</button>
+
+<div id="manualTextContainer" style="display:none;">
+    <textarea id="manualText" placeholder="Corrige el texto detectado aqui..."></textarea>
+    <button onclick="applyManualText()">Buscar con texto corregido</button>
+    <button onclick="cancelManualText()" class="danger">Ocultar</button>
+</div>
+
+<div id="result"></div>
+
+<input id="searchInput" placeholder="Buscar producto..." oninput="searchManual()">
+
+<div id="searchResults"></div>
+
+<h2>Lista de Picking</h2>
+<p id="progress"></p>
+<p id="nextItem"></p>
+<div id="pickingList"></div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+</div>
+
+<div id="savedProductsPage" style="display:none;">
+    <h1>Productos guardados</h1>
+    <button onclick="showMainPage()">Volver</button>
+    <button onclick="openModal()">Anadir producto</button>
+    <div id="savedProducts"></div>
+</div>
+
+<div id="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">x</span>
+
+        <h3 id="modalTitle">Anadir producto</h3>
+
+        <input id="name" placeholder="Nombre del producto">
+
+        <button onclick="toggleCamera()">Tomar foto</button>
+        <button onclick="openImagePicker()">Cargar imagen</button>
+        <input id="imageUpload" type="file" accept="image/*" onchange="handleImageUpload(event)" style="display:none;">
+
+        <video id="modalCamera" autoplay playsinline style="display:none;"></video>
+
+        <img id="preview" alt="Foto del producto" style="display:none; width:100%; border-radius:10px; margin-top:10px;">
+
+        <button id="removeImageBtn" onclick="removeImage()" style="display:none;" class="danger">
+            Eliminar foto
+        </button>
+
+        <input id="location" placeholder="Ubicacion (ej: a-1-n00)">
+
+        <button id="saveButton" onclick="saveItem()">Guardar</button>
+        <button id="deleteProductBtn" onclick="deleteProduct()" class="danger" style="display:none;">
+            Eliminar producto
+        </button>
+    </div>
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
