@@ -1,5 +1,5 @@
 body {
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     background: #111;
     color: white;
     text-align: center;
@@ -9,6 +9,7 @@ body {
 h1 {
     background: #222;
     padding: 15px;
+    margin: 0;
 }
 
 #camera-container {
@@ -45,6 +46,24 @@ button {
     cursor: pointer;
     transition: 0.2s;
     border: none;
+    color: #111;
+    font-weight: bold;
+}
+
+
+.main-actions {
+    width: 90%;
+    max-width: 400px;
+    margin: 15px auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.main-actions button {
+    width: 100%;
+    margin: 0;
+    min-height: 58px;
 }
 
 button:hover {
@@ -54,6 +73,16 @@ button:hover {
 
 button:active {
     transform: scale(0.95);
+}
+
+button.danger {
+    background: #ff3b3b;
+    color: white;
+}
+
+button.warning {
+    background: #ffaa00;
+    color: #111;
 }
 
 .card {
@@ -72,6 +101,13 @@ button:active {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.card.row button {
+    width: auto;
+    min-width: 58px;
+    margin: 4px;
+    padding: 12px;
 }
 
 .product-img {
@@ -164,4 +200,9 @@ input {
     margin: 5px;
     border-radius: 8px;
     border: none;
+    font-size: 16px;
+}
+
+#recognized {
+    white-space: pre-line;
 }
