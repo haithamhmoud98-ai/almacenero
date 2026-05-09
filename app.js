@@ -37,7 +37,6 @@ function loadProducts(){
 
         renderPickingList();
         renderSavedProducts();
-        renderEditableProducts();
 
         const input = document.getElementById("searchInput");
         if(input && input.value){
@@ -57,22 +56,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function showSavedProductsPage(){
     document.getElementById("mainPage").style.display = "none";
-    document.getElementById("editProductsPage").style.display = "none";
     document.getElementById("savedProductsPage").style.display = "block";
     renderSavedProducts();
 }
 
 function showMainPage(){
     document.getElementById("savedProductsPage").style.display = "none";
-    document.getElementById("editProductsPage").style.display = "none";
     document.getElementById("mainPage").style.display = "block";
-}
-
-function showEditProductsPage(){
-    document.getElementById("mainPage").style.display = "none";
-    document.getElementById("savedProductsPage").style.display = "none";
-    document.getElementById("editProductsPage").style.display = "block";
-    renderEditableProducts();
 }
 
 function parseLocation(location){
@@ -428,6 +418,7 @@ function showDetectedText(lines){
     document.getElementById("manualTextContainer").style.display = "none";
     document.getElementById("editDetectedTextBtn").style.display = "block";
 
+    searchLocations(lines);
     showScanSuggestions(lines);
 }
 
@@ -455,6 +446,7 @@ function applyManualText(){
 
     document.getElementById("result").innerHTML = "";
 
+    searchLocations(lines);
     showScanSuggestions(lines);
 }
 
@@ -486,6 +478,43 @@ function smartMatch(input, product){
     return matches / productTokens.length;
 }
 
+function searchLocations(lines){
+    const found = [];
+
+    lines.forEach(line => {
+        let bestMatch = null;
+        let bestScore = 0;
+
+        products.forEach(p => {
+            const score = smartMatch(line, p.name || "");
+
+            if(score > bestScore){
+                bestScore = score;
+                bestMatch = p;
+            }
+        });
+
+        if(bestScore > 0.3 && bestMatch){
+            found.push(bestMatch);
+        }
+    });
+
+    const unique = [];
+    const ids = new Set();
+
+    found.forEach(p => {
+        if(!ids.has(p.id)){
+            ids.add(p.id);
+            unique.push(p);
+        }
+    });
+
+    pickingList = sortProducts(unique);
+    pickedItems.clear();
+
+    renderPickingList();
+}
+
 function renderPickingList(){
     const container = document.getElementById("pickingList");
     const progress = document.getElementById("progress");
@@ -506,7 +535,7 @@ function renderPickingList(){
 
     progress.innerHTML = `${completed} / ${total}`;
     next.innerHTML = nextItem
-        ? `Siguiente ubicacion: ${nextItem.location || ""}`
+        ? `${nextItem.name} (${nextItem.location || ""})`
         : "Completado";
 
     pickingList.forEach(p => {
@@ -614,48 +643,6 @@ function renderSavedProducts(){
     });
 }
 
-function renderEditableProducts(){
-    const container = document.getElementById("editableProducts");
-    const input = document.getElementById("editProductsSearch");
-
-    if(!container) return;
-
-    const search = input ? input.value.toLowerCase().trim() : "";
-
-    let list = products;
-
-    if(search){
-        list = products.filter(p =>
-            (p.name || "").toLowerCase().includes(search) ||
-            (p.location || "").toLowerCase().includes(search)
-        );
-    }
-
-    container.innerHTML = "";
-
-    if(list.length === 0){
-        container.innerHTML = "<p>No hay productos</p>";
-        return;
-    }
-
-    const sorted = sortProducts([...list]);
-
-    sorted.forEach(p => {
-        container.innerHTML += `
-        <div class="card row">
-            ${p.image ? `<img src="${p.image}" class="product-img" onclick="openImage('${p.image}')">` : ""}
-
-            <div style="flex:1;">
-                <h3>${p.name || ""}</h3>
-                <p>${p.location || ""}</p>
-            </div>
-
-            <button onclick="editProduct('${p.id}')" class="warning">Editar</button>
-        </div>
-        `;
-    });
-}
-
 function addToPicking(id){
     const product = products.find(p => p.id === id);
 
@@ -716,7 +703,6 @@ async function toggleCamera(){
                 capturedImage = canvas.toDataURL("image/png");
                 imageRemoved = false;
 
-                const preview = document.getElementById("preview");
                 preview.src = capturedImage;
                 preview.style.display = "block";
 
@@ -914,18 +900,21 @@ function showScanSuggestions(lines){
 
             shownIds.add(bestMatch.id);
 
+            const alreadyAdded = pickingList.find(p => p.id === bestMatch.id);
+
             html += `
             <div class="card row">
                 ${bestMatch.image ? `<img src="${bestMatch.image}" class="product-img" onclick="openImage('${bestMatch.image}')">` : ""}
 
                 <div style="flex:1;">
                     <strong>${bestMatch.name || ""}</strong><br>
+                    Coincide con: ${line}
                     <p>${bestMatch.location || ""}</p>
                 </div>
 
                 <button onclick="editProduct('${bestMatch.id}')" class="warning">Editar</button>
                 <button onclick="addToPicking('${bestMatch.id}')">
-                    OK
+                    ${alreadyAdded ? "OK" : "Agregar"}
                 </button>
             </div>
             `;

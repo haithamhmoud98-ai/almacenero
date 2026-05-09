@@ -23,12 +23,9 @@
     <div class="scanner-frame"></div>
 </div>
 
-<div class="main-actions">
-    <button onclick="scanProduct()">Escanear producto</button>
-    <button onclick="openModal()">Anadir producto</button>
-    <button onclick="showSavedProductsPage()">Productos guardados</button>
-    <button onclick="showEditProductsPage()">Editar productos</button>
-</div>
+<button onclick="scanProduct()">Escanear producto</button>
+<button onclick="openModal()">Anadir producto</button>
+<button onclick="showSavedProductsPage()">Productos guardados</button>
 
 <div id="scanPreviewContainer" style="display:none; margin-top:10px;">
     <div id="previewWrapper">
@@ -77,13 +74,6 @@
     <button onclick="showMainPage()">Volver</button>
     <button onclick="openModal()">Anadir producto</button>
     <div id="savedProducts"></div>
-</div>
-
-<div id="editProductsPage" style="display:none;">
-    <h1>Editar productos</h1>
-    <button onclick="showMainPage()">Volver</button>
-    <input id="editProductsSearch" placeholder="Buscar producto..." oninput="renderEditableProducts()">
-    <div id="editableProducts"></div>
 </div>
 
 <div id="modal">
